@@ -14,8 +14,17 @@ class iWorker(iPerson):
 
 
 class iTaskMaster(iPerson):
-    pass
+    dws: list[iWorker]
+    iws: list[iWorker]
+    tws: list[iWorker]
+    workersInProgress: dict["OrderWorkers"]
+    def NewFactor(self, name: str):
+        raise NotImplementedError
 
+    def findWorker(self, mode: str, name:str):
+        raise NotImplementedError
+    
+    
 
 class DishWorker(iWorker):
     def __init__(self) -> None:
@@ -89,7 +98,7 @@ class Factor:
 
     def restore(self, snapshot):
         self.holder = snapshot.holder
-        self.scopes = snapshot.scopes
+        self.scopes = snapshot.scopes.copy()
         self.topping = snapshot.topping
         self.currentStep = snapshot.currentStep
 
@@ -100,7 +109,7 @@ class Factor:
 class Snapshot:
     def __init__(self, f: Factor) -> None:
         self.holder = f.holder
-        self.scopes = f.scopes
+        self.scopes = f.scopes.copy()
         self.topping = f.topping
         self.currentStep = f.currentStep
 
@@ -138,19 +147,21 @@ class FactorCareTaker:
 class OrderWorkers:
     def __init__(self, dw, iw, tw) -> None:
         self.iw, self.dw, self.tw = iw, dw, tw
-
-
 class TaskMaster(iTaskMaster):
+    
     def __init__(self) -> None:
         self.dws = [DishWorker()]*10
         self.iws = [IceWorker()]*10
         self.tws = [TopWorker()]*10
         self.workersInProgress = dict()
+        self.workerTypes = {
+            "ice": self.iws,
+            "top": self.tws,
+            "dish": self.dws,
+        }
 
     def NewFactor(self, name):
-        dw = self.findDishWorker(name)
-        iw = self.findIceWorker(name)
-        tw = self.findTopWorker(name)
+        dw,iw,tw = self.findWorker("dish",name),self.findWorker("ice",name),self.findWorker("top",name)
         if dw and iw and tw:
             self.workersInProgress[name] = OrderWorkers(dw, iw, tw)
             return True
@@ -164,24 +175,11 @@ class TaskMaster(iTaskMaster):
             self.workersInProgress[message[0]].iw.End(message[0])
             self.workersInProgress[message[0]].tw.End(message[0])
 
-    def findDishWorker(self, name):
-        for w in self.dws:
+    def findWorker(self, mode: str, name: str):
+        for w in self.workerTypes[mode]:
             if w.IsFree(name):
                 return w
         return False
-
-    def findIceWorker(self, name):
-        for w in self.iws:
-            if w.IsFree(name):
-                return w
-        return False
-
-    def findTopWorker(self, name):
-        for w in self.tws:
-            if w.IsFree(name):
-                return w
-        return False
-
 
 class iGhasemi:
     def __init__(self, tm: TaskMaster) -> None:
@@ -232,6 +230,7 @@ class iGhasemi:
                 self.factors[name].factor.currentStep = "end"
                 self.Shout(f"{name} end")
         print("#> Done")
+
     def processChoice(self, choice, name):
         if choice == "back":
             print("aaaa")
@@ -243,11 +242,13 @@ class iGhasemi:
     def chooseVerify(self, name):
         print("#> this is your final order. do you confirm? (yes, back)")
         print(f"\t- holder: {self.factors[name].factor.holder}")
-        print(f"\t- scopes: {', '.join([x.flavor for x in self.factors[name].factor.scopes])}")
+        print(
+            f"\t- scopes: {', '.join([x.flavor for x in self.factors[name].factor.scopes])}")
         print(f"\t- topping: {self.factors[name].factor.topping}")
         choice = ""
-        while choice not in ["yes","back"]:
+        while choice not in ["yes", "back"]:
             choice = input("choice: ")
+        return choice
 
     def chooseName(self):
         print("#> please enter your name:")
@@ -256,7 +257,7 @@ class iGhasemi:
     def chooseDish(self):
         print("#> thank you. choose your holder: plastic, cone")
         dish = ""
-        while dish not in ["plastic", "cone", "back"]:
+        while dish not in ["plastic", "cone"]:
             dish = input("choice: ")
         return dish
 
@@ -284,6 +285,8 @@ class iGhasemi:
                 self.start()
             elif cmd == "help":
                 print("start: Start buying process")
+                print("exit: Exit iGhasemi icecream shop")
+                print("help: Show this message")
             elif cmd == "exit":
                 self.quit = True
         print("Bye!")
