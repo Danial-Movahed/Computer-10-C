@@ -233,7 +233,6 @@ class iGhasemi:
 
     def processChoice(self, choice, name):
         if choice == "back":
-            print("aaaa")
             self.factors[name].undo()
             self.Shout(f"{name} regrests.")
             return False
