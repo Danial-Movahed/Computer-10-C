@@ -1,5 +1,5 @@
 class iPerson:
-    def Notify(self, message):
+    def Notify(self, message: str) -> None:
         raise NotImplementedError
 
 
@@ -18,19 +18,19 @@ class iTaskMaster(iPerson):
     iws: list[iWorker]
     tws: list[iWorker]
     workersInProgress: dict["OrderWorkers"]
-    def NewFactor(self, name: str):
+
+    def NewFactor(self, name: str) -> bool:
         raise NotImplementedError
 
-    def findWorker(self, mode: str, name:str):
+    def findWorker(self, mode: str, name: str) -> iWorker:
         raise NotImplementedError
-    
-    
+
 
 class DishWorker(iWorker):
     def __init__(self) -> None:
         self.currentlyWorkingName = None
 
-    def Notify(self, message):
+    def Notify(self, message: str) -> None:
         print(message)
 
     def IsFree(self, name: str) -> bool:
@@ -49,7 +49,7 @@ class IceWorker(iWorker):
     def __init__(self) -> None:
         self.currentlyWorkingName = None
 
-    def Notify(self, message):
+    def Notify(self, message: str):
         print(message)
 
     def IsFree(self, name: str) -> bool:
@@ -68,7 +68,7 @@ class TopWorker(iWorker):
     def __init__(self) -> None:
         self.currentlyWorkingName = None
 
-    def Notify(self, message):
+    def Notify(self, message: str) -> None:
         print(message)
 
     def IsFree(self, name: str) -> bool:
@@ -84,7 +84,7 @@ class TopWorker(iWorker):
 
 
 class Scope:
-    def __init__(self, flavor) -> None:
+    def __init__(self, flavor: str) -> None:
         self.flavor = flavor
 
 
@@ -96,13 +96,13 @@ class Factor:
         self.topping = None
         self.currentStep = "holder"
 
-    def restore(self, snapshot):
+    def restore(self, snapshot: "Snapshot") -> None:
         self.holder = snapshot.holder
         self.scopes = snapshot.scopes.copy()
         self.topping = snapshot.topping
         self.currentStep = snapshot.currentStep
 
-    def getSnapshot(self):
+    def getSnapshot(self) -> "Snapshot":
         return Snapshot(self)
 
 
@@ -122,33 +122,35 @@ class FactorCareTaker:
     def _saveSnapshot(self):
         self.snapShots.append(self.factor.getSnapshot())
 
-    def setHolder(self, holder):
+    def setHolder(self, holder: str) -> None:
         self._saveSnapshot()
         self.factor.holder = holder
         self.factor.currentStep = "flavor"
 
-    def setScopes(self, flavor):
+    def setScopes(self, flavor: str) -> None:
         self._saveSnapshot()
         self.factor.scopes.append(Scope(flavor))
         if len(self.factor.scopes) == 3:
             self.factor.currentStep = "topping"
 
-    def setTopping(self, topping):
+    def setTopping(self, topping: str) -> None:
         self._saveSnapshot()
         self.factor.topping = topping
         self.factor.currentStep = "verify"
 
-    def undo(self):
+    def undo(self) -> None:
         if len(self.snapShots) == 0:
             return
         self.factor.restore(self.snapShots.pop())
 
 
 class OrderWorkers:
-    def __init__(self, dw, iw, tw) -> None:
+    def __init__(self, dw: iWorker, iw: iWorker, tw: iWorker) -> None:
         self.iw, self.dw, self.tw = iw, dw, tw
+
+
 class TaskMaster(iTaskMaster):
-    
+
     def __init__(self) -> None:
         self.dws = [DishWorker()]*10
         self.iws = [IceWorker()]*10
@@ -160,14 +162,15 @@ class TaskMaster(iTaskMaster):
             "dish": self.dws,
         }
 
-    def NewFactor(self, name):
-        dw,iw,tw = self.findWorker("dish",name),self.findWorker("ice",name),self.findWorker("top",name)
+    def NewFactor(self, name: str) -> bool:
+        dw, iw, tw = self.findWorker("dish", name), self.findWorker(
+            "ice", name), self.findWorker("top", name)
         if dw and iw and tw:
             self.workersInProgress[name] = OrderWorkers(dw, iw, tw)
             return True
         return False
 
-    def Notify(self, message):
+    def Notify(self, message: str) -> None:
         print(message)
         message = message.split()
         if message[1] == "end":
@@ -175,11 +178,12 @@ class TaskMaster(iTaskMaster):
             self.workersInProgress[message[0]].iw.End(message[0])
             self.workersInProgress[message[0]].tw.End(message[0])
 
-    def findWorker(self, mode: str, name: str):
+    def findWorker(self, mode: str, name: str) -> bool:
         for w in self.workerTypes[mode]:
             if w.IsFree(name):
                 return w
         return False
+
 
 class iGhasemi:
     def __init__(self, tm: TaskMaster) -> None:
@@ -187,18 +191,18 @@ class iGhasemi:
         self.tm = tm
         self.people = list()
 
-    def addPeople(self, person):
+    def addPeople(self, person: iPerson) -> None:
         self.people.append(person)
 
-    def Shout(self, message):
+    def Shout(self, message: str) -> None:
         for p in self.people:
             p.Notify(message)
 
-    def createFactor(self, name):
+    def createFactor(self, name: str) -> None:
         if self.tm.NewFactor(name):
             self.factors[name] = FactorCareTaker(Factor(name))
 
-    def start(self):
+    def start(self) -> None:
         name = self.chooseName()
         self.createFactor(name)
         while self.factors[name].factor.currentStep != "end":
@@ -231,14 +235,14 @@ class iGhasemi:
                 self.Shout(f"{name} end")
         print("#> Done")
 
-    def processChoice(self, choice, name):
+    def processChoice(self, choice: str, name: str) -> bool:
         if choice == "back":
             self.factors[name].undo()
             self.Shout(f"{name} regrests.")
             return False
         return True
 
-    def chooseVerify(self, name):
+    def chooseVerify(self, name: str) -> str:
         print("#> this is your final order. do you confirm? (yes, back)")
         print(f"\t- holder: {self.factors[name].factor.holder}")
         print(
@@ -249,18 +253,18 @@ class iGhasemi:
             choice = input("choice: ")
         return choice
 
-    def chooseName(self):
+    def chooseName(self) -> str:
         print("#> please enter your name:")
         return input()
 
-    def chooseDish(self):
+    def chooseDish(self) -> str:
         print("#> thank you. choose your holder: plastic, cone")
         dish = ""
         while dish not in ["plastic", "cone"]:
             dish = input("choice: ")
         return dish
 
-    def chooseFlavor(self, num):
+    def chooseFlavor(self, num: str) -> str:
         print(
             f"#> choose your #{num+1} flavor: hazelnut, strawberry, chocolate, coffee (back)")
         fl = ""
@@ -268,14 +272,14 @@ class iGhasemi:
             fl = input("choice: ")
         return fl
 
-    def chooseTopping(self):
+    def chooseTopping(self) -> str:
         print("#> choose your topping: confetti, jelly, chocolate syrup (back)")
         tp = ""
         while tp not in ["confetti", "jelly", "chocolate syrup", "back"]:
             tp = input("choice: ")
         return tp
 
-    def run(self):
+    def run(self) -> None:
         self.quit = False
         print("Welcome to iGhasemi icecream shop!")
         while not self.quit:
