@@ -1,5 +1,5 @@
 class iPerson:
-    def Notify(self, message: str) -> None:
+    def Notify(self, name: str, message: str) -> None:
         raise NotImplementedError
 
 
@@ -17,7 +17,6 @@ class iTaskMaster(iPerson):
     dws: list[iWorker]
     iws: list[iWorker]
     tws: list[iWorker]
-    workersInProgress: dict["OrderWorkers"]
 
     def NewFactor(self, name: str) -> bool:
         raise NotImplementedError
@@ -29,9 +28,13 @@ class iTaskMaster(iPerson):
 class DishWorker(iWorker):
     def __init__(self) -> None:
         self.currentlyWorkingName = None
+        self.holder = None
 
-    def Notify(self, message: str) -> None:
-        print(message)
+    def Notify(self, name: str, type: str, message: str) -> None:
+        print(name, type, message)
+        self.holder = message
+        if type == "end":
+            self.End(name)
 
     def IsFree(self, name: str) -> bool:
         if self.currentlyWorkingName == None:
@@ -48,9 +51,15 @@ class DishWorker(iWorker):
 class IceWorker(iWorker):
     def __init__(self) -> None:
         self.currentlyWorkingName = None
+        self.scopes: list["Scope"] = list()
 
-    def Notify(self, message: str):
-        print(message)
+    def Notify(self, name: str, type: str, message: str) -> None:
+        print(name, type, message)
+        if not (type == "end" or type == "regrets."):
+            self.scopes.append(Scope(message))
+        if type == "end":
+            print([x.flavor for x in self.scopes])
+            self.End(name)
 
     def IsFree(self, name: str) -> bool:
         if self.currentlyWorkingName == None:
@@ -67,9 +76,13 @@ class IceWorker(iWorker):
 class TopWorker(iWorker):
     def __init__(self) -> None:
         self.currentlyWorkingName = None
+        self.topping = None
 
-    def Notify(self, message: str) -> None:
-        print(message)
+    def Notify(self, name: str, type: str, message: str) -> None:
+        print(name, type, message)
+        self.topping = message
+        if type == "end":
+            self.End(name)
 
     def IsFree(self, name: str) -> bool:
         if self.currentlyWorkingName == None:
@@ -91,6 +104,7 @@ class Scope:
 class Factor:
     def __init__(self, name: str) -> None:
         self.name = name
+        self.orderWorkers: OrderWorkers = None
         self.holder = None
         self.scopes: list[Scope] = list()
         self.topping = None
@@ -155,7 +169,6 @@ class TaskMaster(iTaskMaster):
         self.dws = [DishWorker()]*10
         self.iws = [IceWorker()]*10
         self.tws = [TopWorker()]*10
-        self.workersInProgress = dict()
         self.workerTypes = {
             "ice": self.iws,
             "top": self.tws,
@@ -166,17 +179,8 @@ class TaskMaster(iTaskMaster):
         dw, iw, tw = self.findWorker("dish", name), self.findWorker(
             "ice", name), self.findWorker("top", name)
         if dw and iw and tw:
-            self.workersInProgress[name] = OrderWorkers(dw, iw, tw)
-            return True
-        return False
-
-    def Notify(self, message: str) -> None:
-        print(message)
-        message = message.split()
-        if message[1] == "end":
-            self.workersInProgress[message[0]].dw.End(message[0])
-            self.workersInProgress[message[0]].iw.End(message[0])
-            self.workersInProgress[message[0]].tw.End(message[0])
+            return OrderWorkers(dw, iw, tw)
+        return None
 
     def findWorker(self, mode: str, name: str) -> bool:
         for w in self.workerTypes[mode]:
@@ -186,21 +190,32 @@ class TaskMaster(iTaskMaster):
 
 
 class iGhasemi:
+    obj = None
+
+    def __new__(cls,tm) -> "iGhasemi":
+        if cls.obj == None:
+            cls.obj = super().__new__(cls)
+        return cls.obj
+
     def __init__(self, tm: TaskMaster) -> None:
         self.factors: dict[str, FactorCareTaker] = dict()
         self.tm = tm
-        self.people = list()
-
-    def addPeople(self, person: iPerson) -> None:
-        self.people.append(person)
-
-    def Shout(self, message: str) -> None:
-        for p in self.people:
-            p.Notify(message)
 
     def createFactor(self, name: str) -> None:
-        if self.tm.NewFactor(name):
-            self.factors[name] = FactorCareTaker(Factor(name))
+        self.factors[name] = FactorCareTaker(Factor(name))
+        self.factors[name].orderWorkers = self.tm.NewFactor(name)
+            
+    def Shout(self,name,type,msg):
+        if type == "holder":
+            self.factors[name].orderWorkers.dw.Notify(name, type, msg)
+        elif "flavor" in type:
+            self.factors[name].orderWorkers.iw.Notify(name, type, msg)
+        elif type == "topping":
+            self.factors[name].orderWorkers.dw.Notify(name, type, msg)
+        else:
+            self.factors[name].orderWorkers.dw.Notify(name, type, msg)
+            self.factors[name].orderWorkers.tw.Notify(name, type, msg)
+            self.factors[name].orderWorkers.iw.Notify(name, type, msg)
 
     def start(self) -> None:
         name = self.chooseName()
@@ -209,7 +224,7 @@ class iGhasemi:
             if self.factors[name].factor.currentStep == "holder":
                 choice = self.chooseDish()
                 self.factors[name].setHolder(choice)
-                self.Shout(f"{name} holder {choice}")
+                self.Shout(name, "holder", choice)
 
             elif self.factors[name].factor.currentStep == "flavor":
                 choice = self.chooseFlavor(
@@ -217,28 +232,30 @@ class iGhasemi:
                 if not self.processChoice(choice, name):
                     continue
                 self.factors[name].setScopes(choice)
-                self.Shout(
-                    f"{name} #{len(self.factors[name].factor.scopes)} flavor {choice}")
+                self.Shout(name, f"flavor #{len(self.factors[name].factor.scopes)}", choice)
 
             elif self.factors[name].factor.currentStep == "topping":
                 choice = self.chooseTopping()
                 if not self.processChoice(choice, name):
                     continue
                 self.factors[name].setTopping(choice)
-                self.Shout(f"{name} topping {choice}")
+                self.Shout(name, "topping", choice)
 
             elif self.factors[name].factor.currentStep == "verify":
                 choice = self.chooseVerify(name)
                 if not self.processChoice(choice, name):
                     continue
                 self.factors[name].factor.currentStep = "end"
-                self.Shout(f"{name} end")
+                self.Shout(name, "end", "")
         print("#> Done")
 
     def processChoice(self, choice: str, name: str) -> bool:
         if choice == "back":
             self.factors[name].undo()
-            self.Shout(f"{name} regrests.")
+            self.Shout(name, "regrets.", "")
+            self.factors[name].orderWorkers.dw.holder = self.factors[name].factor.holder
+            self.factors[name].orderWorkers.iw.scopes = self.factors[name].factor.scopes.copy()
+            self.factors[name].orderWorkers.tw.topping = self.factors[name].factor.topping
             return False
         return True
 
@@ -297,5 +314,4 @@ class iGhasemi:
 
 fariborz = TaskMaster()
 ghasemi = iGhasemi(fariborz)
-ghasemi.addPeople(fariborz)
 ghasemi.run()
