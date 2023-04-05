@@ -58,7 +58,6 @@ class IceWorker(iWorker):
         if not (type == "end" or type == "regrets."):
             self.scopes.append(Scope(message))
         if type == "end":
-            print([x.flavor for x in self.scopes])
             self.End(name)
 
     def IsFree(self, name: str) -> bool:
@@ -133,7 +132,7 @@ class FactorCareTaker:
         self.factor = factor
         self.snapShots: list[Snapshot] = list()
 
-    def _saveSnapshot(self):
+    def _saveSnapshot(self) -> None:
         self.snapShots.append(self.factor.getSnapshot())
 
     def setHolder(self, holder: str) -> None:
@@ -175,18 +174,16 @@ class TaskMaster(iTaskMaster):
             "dish": self.dws,
         }
 
-    def NewFactor(self, name: str) -> bool:
+    def NewFactor(self, name: str, fct: FactorCareTaker) -> None:
         dw, iw, tw = self.findWorker("dish", name), self.findWorker(
             "ice", name), self.findWorker("top", name)
-        if dw and iw and tw:
-            return OrderWorkers(dw, iw, tw)
-        return None
+        fct.factor.orderWorkers = OrderWorkers(dw,iw,tw)
 
-    def findWorker(self, mode: str, name: str) -> bool:
+    def findWorker(self, mode: str, name: str) -> iWorker:
         for w in self.workerTypes[mode]:
             if w.IsFree(name):
                 return w
-        return False
+        return None
 
 
 class iGhasemi:
@@ -203,19 +200,19 @@ class iGhasemi:
 
     def createFactor(self, name: str) -> None:
         self.factors[name] = FactorCareTaker(Factor(name))
-        self.factors[name].orderWorkers = self.tm.NewFactor(name)
+        self.tm.NewFactor(name,self.factors[name])
             
     def Shout(self,name,type,msg):
         if type == "holder":
-            self.factors[name].orderWorkers.dw.Notify(name, type, msg)
+            self.factors[name].factor.orderWorkers.dw.Notify(name, type, msg)
         elif "flavor" in type:
-            self.factors[name].orderWorkers.iw.Notify(name, type, msg)
+            self.factors[name].factor.orderWorkers.iw.Notify(name, type, msg)
         elif type == "topping":
-            self.factors[name].orderWorkers.dw.Notify(name, type, msg)
+            self.factors[name].factor.orderWorkers.dw.Notify(name, type, msg)
         else:
-            self.factors[name].orderWorkers.dw.Notify(name, type, msg)
-            self.factors[name].orderWorkers.tw.Notify(name, type, msg)
-            self.factors[name].orderWorkers.iw.Notify(name, type, msg)
+            self.factors[name].factor.orderWorkers.dw.Notify(name, type, msg)
+            self.factors[name].factor.orderWorkers.tw.Notify(name, type, msg)
+            self.factors[name].factor.orderWorkers.iw.Notify(name, type, msg)
 
     def start(self) -> None:
         name = self.chooseName()
@@ -253,9 +250,9 @@ class iGhasemi:
         if choice == "back":
             self.factors[name].undo()
             self.Shout(name, "regrets.", "")
-            self.factors[name].orderWorkers.dw.holder = self.factors[name].factor.holder
-            self.factors[name].orderWorkers.iw.scopes = self.factors[name].factor.scopes.copy()
-            self.factors[name].orderWorkers.tw.topping = self.factors[name].factor.topping
+            self.factors[name].factor.orderWorkers.dw.holder = self.factors[name].factor.holder
+            self.factors[name].factor.orderWorkers.iw.scopes = self.factors[name].factor.scopes.copy()
+            self.factors[name].factor.orderWorkers.tw.topping = self.factors[name].factor.topping
             return False
         return True
 
